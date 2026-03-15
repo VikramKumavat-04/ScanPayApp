@@ -6,14 +6,17 @@ import {
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
+import { useCart } from '../context/CartContext';
+import { useTheme } from '../context/ThemeContext';
 
 export default function ScanScreen() {
+  const { colors } = useTheme();
+  const { addToCart, getTotalItems } = useCart();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanning, setScanning] = useState(false);
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
   const [product, setProduct] = useState(null);
-  const [cart, setCart] = useState([]);
   const isProcessing = useRef(false);
 
   const handleBarCodeScanned = async ({ type, data }) => {
@@ -67,42 +70,32 @@ export default function ScanScreen() {
     setLoading(false);
   };
 
-  const addToCart = () => {
-    const existing = cart.find(item => item.id === product.id);
-    if (existing) {
-      setCart(cart.map(item =>
-        item.id === product.id
-          ? { ...item, qty: item.qty + 1 }
-          : item
-      ));
-    } else {
-      setCart([...cart, { ...product, qty: 1 }]);
-    }
+  const handleAddToCart = () => {
+    addToCart(product);
     setProduct(null);
     setScanned(false);
     isProcessing.current = false;
     Alert.alert('Added! ✅', `${product.name} added to cart!`);
   };
 
-  const getTotalAmount = () => {
-    return cart.reduce((total, item) => total + (item.price * item.qty), 0);
-  };
-
   if (!permission) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#6C63FF" />
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   if (!permission.granted) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.permText}>
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <Text style={[styles.permText, { color: colors.text }]}>
           Camera access is needed to scan products
         </Text>
-        <TouchableOpacity style={styles.button} onPress={requestPermission}>
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.primary }]}
+          onPress={requestPermission}
+        >
           <Text style={styles.buttonText}>Allow Camera</Text>
         </TouchableOpacity>
       </View>
@@ -110,7 +103,7 @@ export default function ScanScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {scanning ? (
         <View style={styles.scannerContainer}>
           <CameraView
@@ -144,14 +137,16 @@ export default function ScanScreen() {
         </View>
       ) : (
         <ScrollView style={styles.content}>
-          <View style={styles.scanBox}>
+          <View style={[styles.scanBox, { backgroundColor: colors.card }]}>
             <Text style={styles.scanIcon}>📷</Text>
-            <Text style={styles.scanTitle}>Scan a Product</Text>
-            <Text style={styles.scanSub}>
+            <Text style={[styles.scanTitle, { color: colors.text }]}>
+              Scan a Product
+            </Text>
+            <Text style={[styles.scanSub, { color: colors.subtext }]}>
               Point your camera at a barcode or QR code
             </Text>
             <TouchableOpacity
-              style={styles.button}
+              style={[styles.button, { backgroundColor: colors.primary }]}
               onPress={() => {
                 setScanned(false);
                 setScanning(true);
@@ -162,33 +157,17 @@ export default function ScanScreen() {
             </TouchableOpacity>
           </View>
 
-          {cart.length > 0 && (
-            <View style={styles.cartSection}>
-              <Text style={styles.sectionTitle}>
-                🛒 Cart ({cart.length} items)
+          {getTotalItems() > 0 && (
+            <View style={[styles.cartBanner, { backgroundColor: colors.primary }]}>
+              <Text style={styles.cartBannerText}>
+                🛒 {getTotalItems()} items in cart
               </Text>
-              {cart.map((item, index) => (
-                <View key={index} style={styles.cartItem}>
-                  <View>
-                    <Text style={styles.cartItemName}>{item.name}</Text>
-                    <Text style={styles.cartItemQty}>Qty: {item.qty}</Text>
-                  </View>
-                  <Text style={styles.cartItemPrice}>
-                    ₹{item.price * item.qty}
-                  </Text>
-                </View>
-              ))}
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Total Amount</Text>
-                <Text style={styles.totalAmount}>₹{getTotalAmount()}</Text>
-              </View>
-              <TouchableOpacity style={styles.payButton}>
-                <Text style={styles.payButtonText}>
-                  Proceed to Pay ₹{getTotalAmount()}
-                </Text>
-              </TouchableOpacity>
+              <Text style={styles.cartBannerSub}>
+                Go to Cart tab to pay
+              </Text>
             </View>
           )}
+
         </ScrollView>
       )}
 
@@ -201,15 +180,28 @@ export default function ScanScreen() {
 
       {product && (
         <View style={styles.productModal}>
-          <View style={styles.productCard}>
-            <Text style={styles.productName}>{product.name}</Text>
-            <Text style={styles.productDesc}>{product.description}</Text>
-            <Text style={styles.productCategory}>{product.category}</Text>
+          <View style={[styles.productCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.productName, { color: colors.text }]}>
+              {product.name}
+            </Text>
+            <Text style={[styles.productDesc, { color: colors.subtext }]}>
+              {product.description}
+            </Text>
+            <Text style={[styles.productCategory, { color: colors.primary }]}>
+              {product.category}
+            </Text>
             <View style={styles.priceRow}>
-              <Text style={styles.productPrice}>₹{product.price}</Text>
-              <Text style={styles.productStock}>Stock: {product.stock}</Text>
+              <Text style={[styles.productPrice, { color: colors.primary }]}>
+                ₹{product.price}
+              </Text>
+              <Text style={[styles.productStock, { color: colors.subtext }]}>
+                Stock: {product.stock}
+              </Text>
             </View>
-            <TouchableOpacity style={styles.addButton} onPress={addToCart}>
+            <TouchableOpacity
+              style={[styles.addButton, { backgroundColor: colors.primary }]}
+              onPress={handleAddToCart}
+            >
               <Text style={styles.addButtonText}>Add to Cart</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -220,7 +212,9 @@ export default function ScanScreen() {
                 isProcessing.current = false;
               }}
             >
-              <Text style={styles.skipText}>Scan Another</Text>
+              <Text style={[styles.skipText, { color: colors.subtext }]}>
+                Scan Another
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -230,32 +224,39 @@ export default function ScanScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  container: { flex: 1 },
   center: {
     flex: 1, justifyContent: 'center',
     alignItems: 'center', padding: 24,
   },
   permText: {
-    fontSize: 15, color: '#333',
-    textAlign: 'center', marginBottom: 20,
+    fontSize: 15, textAlign: 'center', marginBottom: 20,
   },
   content: { flex: 1 },
   scanBox: {
-    backgroundColor: '#fff', borderRadius: 16,
-    padding: 36, alignItems: 'center',
-    margin: 24, elevation: 3,
+    borderRadius: 16, padding: 36,
+    alignItems: 'center', margin: 24, elevation: 3,
   },
   scanIcon: { fontSize: 48, marginBottom: 16 },
-  scanTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
+  scanTitle: { fontSize: 20, fontWeight: 'bold' },
   scanSub: {
-    fontSize: 13, color: '#888',
-    textAlign: 'center', marginTop: 8, marginBottom: 24,
+    fontSize: 13, textAlign: 'center',
+    marginTop: 8, marginBottom: 24,
   },
   button: {
-    backgroundColor: '#6C63FF',
     paddingHorizontal: 32, paddingVertical: 14, borderRadius: 12,
   },
   buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+  cartBanner: {
+    margin: 16, borderRadius: 12,
+    padding: 16, alignItems: 'center',
+  },
+  cartBannerText: {
+    color: '#fff', fontSize: 16, fontWeight: 'bold',
+  },
+  cartBannerSub: {
+    color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 4,
+  },
   scannerContainer: { flex: 1 },
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -291,55 +292,25 @@ const styles = StyleSheet.create({
     position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: 'rgba(0,0,0,0.5)', padding: 16,
   },
-  productCard: {
-    backgroundColor: '#fff', borderRadius: 20, padding: 24,
-  },
-  productName: { fontSize: 20, fontWeight: 'bold', color: '#333' },
-  productDesc: { fontSize: 14, color: '#888', marginTop: 4 },
+  productCard: { borderRadius: 20, padding: 24 },
+  productName: { fontSize: 20, fontWeight: 'bold' },
+  productDesc: { fontSize: 14, marginTop: 4 },
   productCategory: {
-    fontSize: 12, color: '#6C63FF',
-    backgroundColor: '#f0eeff',
-    paddingHorizontal: 10, paddingVertical: 3,
+    fontSize: 12, paddingHorizontal: 10, paddingVertical: 3,
     borderRadius: 20, marginTop: 8, alignSelf: 'flex-start',
+    backgroundColor: '#f0eeff',
   },
   priceRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', marginTop: 16, marginBottom: 16,
   },
-  productPrice: { fontSize: 28, fontWeight: 'bold', color: '#6C63FF' },
-  productStock: { fontSize: 13, color: '#888' },
+  productPrice: { fontSize: 28, fontWeight: 'bold' },
+  productStock: { fontSize: 13 },
   addButton: {
-    backgroundColor: '#6C63FF', borderRadius: 12,
-    paddingVertical: 14, alignItems: 'center', marginBottom: 10,
+    borderRadius: 12, paddingVertical: 14,
+    alignItems: 'center', marginBottom: 10,
   },
   addButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   skipButton: { alignItems: 'center', paddingVertical: 8 },
-  skipText: { color: '#888', fontSize: 14 },
-  cartSection: {
-    backgroundColor: '#fff', margin: 16,
-    borderRadius: 16, padding: 16, elevation: 3,
-  },
-  sectionTitle: {
-    fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 12,
-  },
-  cartItem: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    paddingVertical: 10, borderBottomWidth: 0.5,
-    borderBottomColor: '#eee',
-  },
-  cartItemName: { fontSize: 14, fontWeight: '600', color: '#333' },
-  cartItemQty: { fontSize: 12, color: '#888', marginTop: 2 },
-  cartItemPrice: { fontSize: 15, fontWeight: 'bold', color: '#6C63FF' },
-  totalRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    marginTop: 12, paddingTop: 12,
-    borderTopWidth: 1, borderTopColor: '#eee',
-  },
-  totalLabel: { fontSize: 15, fontWeight: 'bold', color: '#333' },
-  totalAmount: { fontSize: 18, fontWeight: 'bold', color: '#6C63FF' },
-  payButton: {
-    backgroundColor: '#2ecc71', borderRadius: 12,
-    paddingVertical: 14, alignItems: 'center', marginTop: 12,
-  },
-  payButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+  skipText: { fontSize: 14 },
 });

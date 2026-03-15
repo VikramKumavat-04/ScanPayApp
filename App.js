@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import app from './firebase';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { CartProvider, useCart } from './context/CartContext';
 
 import HomeScreen from './screens/HomeScreen';
 import ScanScreen from './screens/ScanScreen';
@@ -14,6 +15,7 @@ import PaymentScreen from './screens/PaymentScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import LoginScreen from './screens/LoginScreen';
 import OTPScreen from './screens/OTPScreen';
+import QRReceiptScreen from './screens/QRReceiptScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -21,6 +23,9 @@ const auth = getAuth(app);
 
 function MainApp() {
   const { colors } = useTheme();
+  const { getTotalItems } = useCart();
+  const totalItems = getTotalItems();
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -37,17 +42,44 @@ function MainApp() {
         headerTitleStyle: { fontWeight: 'bold' },
       }}
     >
-      <Tab.Screen name="Home" component={HomeScreen}
-        options={{ tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} /> }}
+      <Tab.Screen
+        name="Home"
+        component={HomeScreen}
+        options={{
+          tabBarIcon: ({ color, size }) =>
+            <Ionicons name="home-outline" size={size} color={color} />
+        }}
       />
-      <Tab.Screen name="Scan" component={ScanScreen}
-        options={{ tabBarIcon: ({ color, size }) => <Ionicons name="scan-outline" size={size} color={color} /> }}
+      <Tab.Screen
+        name="Scan"
+        component={ScanScreen}
+        options={{
+          tabBarIcon: ({ color, size }) =>
+            <Ionicons name="scan-outline" size={size} color={color} />
+        }}
       />
-      <Tab.Screen name="Payment" component={PaymentScreen}
-        options={{ tabBarIcon: ({ color, size }) => <Ionicons name="card-outline" size={size} color={color} /> }}
+      <Tab.Screen
+        name="Payment"
+        component={PaymentScreen}
+        options={{
+          tabBarLabel: 'Cart',
+          tabBarIcon: ({ color, size }) =>
+            <Ionicons name="cart-outline" size={size} color={color} />,
+          tabBarBadge: totalItems > 0 ? totalItems : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: '#e74c3c',
+            color: '#fff',
+            fontSize: 10,
+          },
+        }}
       />
-      <Tab.Screen name="Profile" component={ProfileScreen}
-        options={{ tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} /> }}
+      <Tab.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{
+          tabBarIcon: ({ color, size }) =>
+            <Ionicons name="person-outline" size={size} color={color} />
+        }}
       />
     </Tab.Navigator>
   );
@@ -68,7 +100,10 @@ function RootNav() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary }}>
+      <View style={{
+        flex: 1, justifyContent: 'center',
+        alignItems: 'center', backgroundColor: colors.primary
+      }}>
         <ActivityIndicator size="large" color="#fff" />
       </View>
     );
@@ -78,7 +113,19 @@ function RootNav() {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {user ? (
-          <Stack.Screen name="MainApp" component={MainApp} />
+          <>
+            <Stack.Screen name="MainApp" component={MainApp} />
+            <Stack.Screen
+              name="QRReceipt"
+              component={QRReceiptScreen}
+              options={{
+                headerShown: true,
+                title: 'QR Receipt',
+                headerStyle: { backgroundColor: '#6C63FF' },
+                headerTintColor: '#fff',
+              }}
+            />
+          </>
         ) : (
           <>
             <Stack.Screen name="Login" component={LoginScreen} />
@@ -93,7 +140,9 @@ function RootNav() {
 export default function App() {
   return (
     <ThemeProvider>
-      <RootNav />
+      <CartProvider>
+        <RootNav />
+      </CartProvider>
     </ThemeProvider>
   );
 }
