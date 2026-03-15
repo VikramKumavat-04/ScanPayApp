@@ -34,38 +34,42 @@ export default function PaymentScreen({ navigation }) {
     setLoading(true);
     try {
       const user = auth.currentUser;
+      const orderId = `ORD${Date.now()}`;
+      const cartSnapshot = [...cart];
       const orderData = {
         userId: user?.uid,
         phone: user?.phoneNumber,
-        items: cart,
+        items: cartSnapshot,
         subtotal,
         tax,
         total,
         status: 'paid',
         createdAt: new Date().toISOString(),
-        orderId: `ORD${Date.now()}`,
+        orderId,
       };
       const docRef = await addDoc(collection(db, 'orders'), orderData);
       clearCart();
+      setLoading(false);
       Alert.alert(
         '🎉 Payment Successful!',
-        `Order placed!\nOrder ID: ${orderData.orderId}\nTotal: ₹${total}`,
+        `Order placed!\nOrder ID: ${orderId}\nTotal: ₹${total}`,
         [
           {
             text: 'View QR Receipt',
             onPress: () => navigation.navigate('QRReceipt', {
-              orderId: orderData.orderId,
+              orderId,
               total,
-              items: cart,
+              items: cartSnapshot,
               docId: docRef.id,
             })
           }
         ]
       );
     } catch (error) {
+      console.log(error);
       Alert.alert('Error', 'Payment failed. Try again.');
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   if (cart.length === 0) {

@@ -16,6 +16,8 @@ import ProfileScreen from './screens/ProfileScreen';
 import LoginScreen from './screens/LoginScreen';
 import OTPScreen from './screens/OTPScreen';
 import QRReceiptScreen from './screens/QRReceiptScreen';
+import OrderHistoryScreen from './screens/OrderHistoryScreen';
+import VerifyScreen from './screens/VerifyScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -121,6 +123,26 @@ function RootNav() {
               options={{
                 headerShown: true,
                 title: 'QR Receipt',
+                headerStyle: { backgroundColor: '#6C63FF' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="OrderHistory"
+              component={OrderHistoryScreen}
+              options={{
+                headerShown: true,
+                title: 'Order History',
+                headerStyle: { backgroundColor: '#6C63FF' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="Verify"
+              component={VerifyScreen}
+              options={{
+                headerShown: true,
+                title: 'Security Verify',
                 headerStyle: { backgroundColor: '#6C63FF' },
                 headerTintColor: '#fff',
               }}
