@@ -35,19 +35,15 @@ export default function OTPScreen({ navigation, route }) {
     }
     setLoading(true);
     try {
-      const confirmationObj = JSON.parse(confirmation);
-      const credential = PhoneAuthProvider.credential(
-        confirmationObj.verificationId,
-        code
-      );
-      await signInWithCredential(auth, credential);
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'MainApp' }],
-      });
-    } catch (error) {
-      Alert.alert('Invalid OTP', 'The code you entered is wrong. Please try again.');
-    }
+  const confirmationObj = JSON.parse(confirmation);
+  const credential = PhoneAuthProvider.credential(
+    confirmationObj.verificationId,
+    code
+  );
+  await signInWithCredential(auth, credential);
+} catch (error) {
+  Alert.alert('Invalid OTP', 'The code you entered is wrong. Please try again.');
+}
     setLoading(false);
   };
 

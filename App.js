@@ -1,7 +1,12 @@
+import { useState, useEffect } from 'react';
+import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import app from './firebase';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 
 import HomeScreen from './screens/HomeScreen';
 import ScanScreen from './screens/ScanScreen';
@@ -12,15 +17,22 @@ import OTPScreen from './screens/OTPScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
+const auth = getAuth(app);
 
 function MainApp() {
+  const { colors } = useTheme();
   return (
     <Tab.Navigator
       screenOptions={{
-        tabBarActiveTintColor: '#6C63FF',
-        tabBarInactiveTintColor: '#999',
-        tabBarStyle: { backgroundColor: '#fff', height: 60, paddingBottom: 8 },
-        headerStyle: { backgroundColor: '#6C63FF' },
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.subtext,
+        tabBarStyle: {
+          backgroundColor: colors.tabBar,
+          height: 60,
+          paddingBottom: 8,
+          borderTopColor: colors.border,
+        },
+        headerStyle: { backgroundColor: colors.header },
         headerTintColor: '#fff',
         headerTitleStyle: { fontWeight: 'bold' },
       }}
@@ -41,14 +53,47 @@ function MainApp() {
   );
 }
 
-export default function App() {
+function RootNav() {
+  const { colors } = useTheme();
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary }}>
+        <ActivityIndicator size="large" color="#fff" />
+      </View>
+    );
+  }
+
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="OTPScreen" component={OTPScreen} />
-        <Stack.Screen name="MainApp" component={MainApp} />
+        {user ? (
+          <Stack.Screen name="MainApp" component={MainApp} />
+        ) : (
+          <>
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="OTPScreen" component={OTPScreen} />
+          </>
+        )}
       </Stack.Navigator>
     </NavigationContainer>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <RootNav />
+    </ThemeProvider>
   );
 }
