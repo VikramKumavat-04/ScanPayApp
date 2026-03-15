@@ -8,9 +8,7 @@ import { useCart } from '../context/CartContext';
 import { getAuth } from 'firebase/auth';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import app from '../firebase';
-
-const auth = getAuth(app);
+import { auth } from '../firebase';
 
 export default function PaymentScreen({ navigation }) {
   const { colors } = useTheme();

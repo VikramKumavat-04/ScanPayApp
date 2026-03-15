@@ -4,8 +4,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
-import app from './firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from './firebase';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { CartProvider, useCart } from './context/CartContext';
 
@@ -18,10 +18,13 @@ import OTPScreen from './screens/OTPScreen';
 import QRReceiptScreen from './screens/QRReceiptScreen';
 import OrderHistoryScreen from './screens/OrderHistoryScreen';
 import VerifyScreen from './screens/VerifyScreen';
+import AdminScreen from './screens/AdminScreen';
+import SplashScreen from './screens/SplashScreen';
+import ProductDetailScreen from './screens/ProductDetailScreen';
+import EditProfileScreen from './screens/EditProfileScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
-const auth = getAuth(app);
 
 function MainApp() {
   const { colors } = useTheme();
@@ -147,6 +150,36 @@ function RootNav() {
                 headerTintColor: '#fff',
               }}
             />
+            <Stack.Screen
+              name="Admin"
+              component={AdminScreen}
+              options={{
+                headerShown: true,
+                title: 'Admin Panel',
+                headerStyle: { backgroundColor: '#6C63FF' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="ProductDetail"
+              component={ProductDetailScreen}
+              options={{
+                headerShown: true,
+                title: 'Product Details',
+                headerStyle: { backgroundColor: '#6C63FF' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="EditProfile"
+              component={EditProfileScreen}
+              options={{
+                headerShown: true,
+                title: 'Edit Profile',
+                headerStyle: { backgroundColor: '#6C63FF' },
+                headerTintColor: '#fff',
+              }}
+            />
           </>
         ) : (
           <>
@@ -160,6 +193,14 @@ function RootNav() {
 }
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
+
+  if (showSplash) {
+    return (
+      <SplashScreen onFinish={() => setShowSplash(false)} />
+    );
+  }
+
   return (
     <ThemeProvider>
       <CartProvider>

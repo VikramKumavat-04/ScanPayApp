@@ -7,9 +7,7 @@ import { getAuth, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useTheme } from '../context/ThemeContext';
 import { db } from '../firebase';
-import app from '../firebase';
-
-const auth = getAuth(app);
+import { auth } from '../firebase';
 
 export default function ProfileScreen({ navigation }) {
   const { colors, mode, toggleTheme } = useTheme();
@@ -20,6 +18,13 @@ export default function ProfileScreen({ navigation }) {
   useEffect(() => {
     fetchUserData();
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchUserData();
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const fetchUserData = async () => {
     try {
@@ -68,9 +73,14 @@ export default function ProfileScreen({ navigation }) {
   };
 
   const getInitials = () => {
+    if (userData?.name) {
+      return userData.name[0].toUpperCase();
+    }
     const phone = user?.phoneNumber || '';
     return phone.slice(-2) || 'U';
   };
+
+  const isAdmin = user?.phoneNumber === '+919316599128';
 
   if (loading) {
     return (
@@ -88,11 +98,27 @@ export default function ProfileScreen({ navigation }) {
           <Text style={styles.avatarText}>{getInitials()}</Text>
         </View>
         <Text style={styles.headerName}>
-          {userData?.name || 'ScanPay User'}
+          {userData?.name || (isAdmin ? '👑 Admin' : 'ScanPay User')}
         </Text>
         <Text style={styles.headerPhone}>
           {user?.phoneNumber || '+91 XXXXXXXXXX'}
         </Text>
+        {userData?.email ? (
+          <Text style={styles.headerEmail}>
+            {userData.email}
+          </Text>
+        ) : null}
+        {userData?.city ? (
+          <Text style={styles.headerEmail}>
+            📍 {userData.city}
+          </Text>
+        ) : null}
+        <TouchableOpacity
+          style={styles.editProfileBtn}
+          onPress={() => navigation.navigate('EditProfile')}
+        >
+          <Text style={styles.editProfileText}>✏️ Edit Profile</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.statsRow}>
@@ -160,6 +186,22 @@ export default function ProfileScreen({ navigation }) {
         <Text style={[styles.sectionTitle, { color: colors.subtext }]}>
           ACCOUNT
         </Text>
+
+        <TouchableOpacity
+          style={[styles.menuItem, {
+            backgroundColor: colors.card,
+            borderColor: colors.border
+          }]}
+          onPress={() => navigation.navigate('EditProfile')}
+        >
+          <View style={styles.menuLeft}>
+            <Text style={styles.menuIcon}>✏️</Text>
+            <Text style={[styles.menuText, { color: colors.text }]}>
+              Edit Profile
+            </Text>
+          </View>
+          <Text style={[styles.menuArrow, { color: colors.subtext }]}>›</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.menuItem, {
@@ -240,6 +282,29 @@ export default function ProfileScreen({ navigation }) {
 
       </View>
 
+      {isAdmin && (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.subtext }]}>
+            ADMIN
+          </Text>
+          <TouchableOpacity
+            style={[styles.menuItem, {
+              backgroundColor: colors.primary,
+              borderColor: colors.primary
+            }]}
+            onPress={() => navigation.navigate('Admin')}
+          >
+            <View style={styles.menuLeft}>
+              <Text style={styles.menuIcon}>⚙️</Text>
+              <Text style={[styles.menuText, { color: '#fff' }]}>
+                Admin Panel
+              </Text>
+            </View>
+            <Text style={[styles.menuArrow, { color: '#fff' }]}>›</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <View style={styles.section}>
         <TouchableOpacity
           style={[styles.logoutBtn, { borderColor: '#e74c3c' }]}
@@ -262,7 +327,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   headerSection: {
-    padding: 32, alignItems: 'center', paddingBottom: 40,
+    padding: 32, alignItems: 'center', paddingBottom: 32,
   },
   avatar: {
     width: 80, height: 80, borderRadius: 40,
@@ -272,8 +337,25 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.5)',
   },
   avatarText: { color: '#fff', fontSize: 28, fontWeight: 'bold' },
-  headerName: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
-  headerPhone: { color: 'rgba(255,255,255,0.8)', fontSize: 14, marginTop: 4 },
+  headerName: {
+    color: '#fff', fontSize: 20, fontWeight: 'bold',
+  },
+  headerPhone: {
+    color: 'rgba(255,255,255,0.8)', fontSize: 14, marginTop: 4,
+  },
+  headerEmail: {
+    color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 2,
+  },
+  editProfileBtn: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 16, paddingVertical: 8,
+    borderRadius: 20, marginTop: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  editProfileText: {
+    color: '#fff', fontSize: 13, fontWeight: '600',
+  },
   statsRow: {
     flexDirection: 'row', marginHorizontal: 16,
     marginTop: -20, marginBottom: 16, gap: 8,

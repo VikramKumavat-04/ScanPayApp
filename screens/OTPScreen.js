@@ -5,9 +5,7 @@ import {
   KeyboardAvoidingView, Platform, ScrollView
 } from 'react-native';
 import { getAuth, PhoneAuthProvider, signInWithCredential } from 'firebase/auth';
-import app from '../firebase';
-
-const auth = getAuth(app);
+import { auth } from '../firebase';
 
 export default function OTPScreen({ navigation, route }) {
   const { phone, confirmation } = route.params;
