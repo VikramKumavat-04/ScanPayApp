@@ -1,5 +1,6 @@
+// App.js
 import { useState, useEffect } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -25,6 +26,19 @@ import EditProfileScreen from './screens/EditProfileScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
+
+// ── Back button component ────────────────────────────
+function BackButton({ navigation }) {
+  const { colors } = useTheme();
+  return (
+    <TouchableOpacity
+      onPress={() => navigation.goBack()}
+      style={{ paddingHorizontal: 12, paddingVertical: 4 }}
+    >
+      <Ionicons name="arrow-back" size={24} color="#fff" />
+    </TouchableOpacity>
+  );
+}
 
 function MainApp() {
   const { colors } = useTheme();
@@ -114,77 +128,102 @@ function RootNav() {
     );
   }
 
+  // ── Common header style ──────────────────────────
+  const headerStyle = {
+    headerStyle: { backgroundColor: '#6C63FF' },
+    headerTintColor: '#fff',
+    headerTitleStyle: { fontWeight: 'bold', fontSize: 16 },
+    headerBackVisible: false, // hide default back, use custom
+  };
+
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {user ? (
           <>
             <Stack.Screen name="MainApp" component={MainApp} />
+
             <Stack.Screen
               name="QRReceipt"
               component={QRReceiptScreen}
-              options={{
+              options={({ navigation }) => ({
+                ...headerStyle,
                 headerShown: true,
-                title: 'QR Receipt',
-                headerStyle: { backgroundColor: '#6C63FF' },
-                headerTintColor: '#fff',
-              }}
+                title: '🧾 QR Receipt',
+                headerLeft: () => <BackButton navigation={navigation} />,
+              })}
             />
+
             <Stack.Screen
               name="OrderHistory"
               component={OrderHistoryScreen}
-              options={{
+              options={({ navigation }) => ({
+                ...headerStyle,
                 headerShown: true,
-                title: 'Order History',
-                headerStyle: { backgroundColor: '#6C63FF' },
-                headerTintColor: '#fff',
-              }}
+                title: '📋 Order History',
+                headerLeft: () => <BackButton navigation={navigation} />,
+              })}
             />
+
             <Stack.Screen
               name="Verify"
               component={VerifyScreen}
-              options={{
+              options={({ navigation }) => ({
+                ...headerStyle,
                 headerShown: true,
-                title: 'Security Verify',
-                headerStyle: { backgroundColor: '#6C63FF' },
-                headerTintColor: '#fff',
-              }}
+                title: '👮 Security Verify',
+                headerLeft: () => <BackButton navigation={navigation} />,
+              })}
             />
+
             <Stack.Screen
               name="Admin"
               component={AdminScreen}
-              options={{
+              options={({ navigation }) => ({
+                ...headerStyle,
                 headerShown: true,
-                title: 'Admin Panel',
-                headerStyle: { backgroundColor: '#6C63FF' },
-                headerTintColor: '#fff',
-              }}
+                title: '⚙️ Admin Panel',
+                headerLeft: () => <BackButton navigation={navigation} />,
+              })}
             />
+
             <Stack.Screen
               name="ProductDetail"
               component={ProductDetailScreen}
-              options={{
+              options={({ navigation }) => ({
+                ...headerStyle,
                 headerShown: true,
-                title: 'Product Details',
-                headerStyle: { backgroundColor: '#6C63FF' },
-                headerTintColor: '#fff',
-              }}
+                title: '📦 Product Details',
+                headerLeft: () => <BackButton navigation={navigation} />,
+              })}
             />
+
             <Stack.Screen
               name="EditProfile"
               component={EditProfileScreen}
-              options={{
+              options={({ navigation }) => ({
+                ...headerStyle,
                 headerShown: true,
-                title: 'Edit Profile',
-                headerStyle: { backgroundColor: '#6C63FF' },
-                headerTintColor: '#fff',
-              }}
+                title: '✏️ Edit Profile',
+                headerLeft: () => <BackButton navigation={navigation} />,
+              })}
             />
           </>
         ) : (
           <>
+            {/* No back button on Login and OTP */}
             <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="OTPScreen" component={OTPScreen} />
+            <Stack.Screen
+              name="OTPScreen"
+              component={OTPScreen}
+              options={({ navigation }) => ({
+                headerShown: true,
+                title: 'Verify OTP',
+                headerStyle: { backgroundColor: '#6C63FF' },
+                headerTintColor: '#fff',
+                headerLeft: () => <BackButton navigation={navigation} />,
+              })}
+            />
           </>
         )}
       </Stack.Navigator>

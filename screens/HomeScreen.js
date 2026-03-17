@@ -8,6 +8,7 @@ import { db, auth } from '../firebase';
 import { useTheme } from '../context/ThemeContext';
 import { useCart } from '../context/CartContext';
 import Toast from '../components/Toast';
+import ProductImage from '../components/ProductImage';
 
 export default function HomeScreen({ navigation }) {
   const { colors } = useTheme();
@@ -144,102 +145,106 @@ export default function HomeScreen({ navigation }) {
   const beauty = products.filter(p => p.category === 'Beauty');
 
   const renderProductCard = (product) => {
-    const scaleAnim = scaleAnims.current[product.id] || new Animated.Value(1);
-    const heartAnim = heartAnims.current[product.id] || new Animated.Value(1);
-    const isWishlisted = !!wishlist.find(w => w.id === product.id);
-    const discountedPrice = getDiscountedPrice(product);
+  const scaleAnim = scaleAnims.current[product.id] || new Animated.Value(1);
+  const heartAnim = heartAnims.current[product.id] || new Animated.Value(1);
+  const isWishlisted = !!wishlist.find(w => w.id === product.id);
+  const discountedPrice = getDiscountedPrice(product);
 
-    return (
-      <TouchableOpacity
-        key={product.id}
-        style={[styles.productCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-        onPress={() => navigation.navigate('ProductDetail', { product })}
-        activeOpacity={0.85}
-      >
-        {product.discount > 0 && (
-          <View style={styles.discountBadge}>
-            <Text style={styles.discountText}>{product.discount}% OFF</Text>
-          </View>
-        )}
-        <View style={styles.productLeft}>
-          <Text style={styles.productEmoji}>{getCategoryEmoji(product.category)}</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.productName, { color: colors.text }]}>{product.name}</Text>
-            <Text style={[styles.productDesc, { color: colors.subtext }]} numberOfLines={1}>
-              {product.description}
-            </Text>
-            <View style={styles.priceRow}>
-              <Text style={[styles.productPrice, { color: colors.primary }]}>
-                ₹{discountedPrice || product.price}
-              </Text>
-              {discountedPrice && (
-                <Text style={styles.originalPrice}>₹{product.price}</Text>
-              )}
-            </View>
-            <Text style={[styles.productCategory, { color: colors.primary }]}>
-              {product.category}
-            </Text>
-          </View>
+  return (
+    <TouchableOpacity
+      key={product.id}
+      style={[styles.productCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+      onPress={() => navigation.navigate('ProductDetail', { product })}
+      activeOpacity={0.85}
+    >
+      {product.discount > 0 && (
+        <View style={styles.discountBadge}>
+          <Text style={styles.discountText}>{product.discount}% OFF</Text>
         </View>
-        <View style={styles.productRight}>
-          <Animated.View style={{ transform: [{ scale: heartAnim }] }}>
-            <TouchableOpacity onPress={() => toggleWishlist(product)} style={styles.heartBtn}>
-              <Text style={styles.heartIcon}>{isWishlisted ? '❤️' : '🤍'}</Text>
-            </TouchableOpacity>
-          </Animated.View>
-          <Text style={[styles.productStock, { color: colors.subtext }]}>
-            Stock: {product.stock}
+      )}
+      <View style={styles.productLeft}>
+        {/* Auto image */}
+        <ProductImage product={product} size={60} style={{ marginRight: 10 }} />
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.productName, { color: colors.text }]}>{product.name}</Text>
+          <Text style={[styles.productDesc, { color: colors.subtext }]} numberOfLines={1}>
+            {product.description}
           </Text>
-          <Animated.View style={{ transform: [{ scale: scaleAnim }], marginTop: 8 }}>
-            <TouchableOpacity
-              style={[styles.addBtn, { backgroundColor: colors.primary }]}
-              onPress={() => handleAddToCart(product)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.addBtnText}>+ Add</Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  const renderHorizontalCard = (product) => {
-    const scaleAnim = scaleAnims.current[product.id] || new Animated.Value(1);
-    const discountedPrice = getDiscountedPrice(product);
-    return (
-      <TouchableOpacity
-        key={product.id}
-        style={[styles.horizontalCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-        onPress={() => navigation.navigate('ProductDetail', { product })}
-        activeOpacity={0.85}
-      >
-        {product.discount > 0 && (
-          <View style={styles.hDiscountBadge}>
-            <Text style={styles.hDiscountText}>{product.discount}%</Text>
+          <View style={styles.priceRow}>
+            <Text style={[styles.productPrice, { color: colors.primary }]}>
+              ₹{discountedPrice || product.price}
+            </Text>
+            {discountedPrice && (
+              <Text style={styles.originalPrice}>₹{product.price}</Text>
+            )}
           </View>
-        )}
-        <Text style={styles.horizontalCardIcon}>{getCategoryEmoji(product.category)}</Text>
-        <Text style={[styles.horizontalCardName, { color: colors.text }]} numberOfLines={2}>
-          {product.name}
+          <Text style={[styles.productCategory, { color: colors.primary }]}>
+            {product.category}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.productRight}>
+        <Animated.View style={{ transform: [{ scale: heartAnim }] }}>
+          <TouchableOpacity onPress={() => toggleWishlist(product)} style={styles.heartBtn}>
+            <Text style={styles.heartIcon}>{isWishlisted ? '❤️' : '🤍'}</Text>
+          </TouchableOpacity>
+        </Animated.View>
+        <Text style={[styles.productStock, { color: colors.subtext }]}>
+          Stock: {product.stock}
         </Text>
-        <Text style={[styles.horizontalCardPrice, { color: colors.primary }]}>
-          ₹{discountedPrice || product.price}
-        </Text>
-        {discountedPrice && (
-          <Text style={styles.hOriginalPrice}>₹{product.price}</Text>
-        )}
-        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+        <Animated.View style={{ transform: [{ scale: scaleAnim }], marginTop: 8 }}>
           <TouchableOpacity
-            style={[styles.hAddBtn, { backgroundColor: colors.primary }]}
+            style={[styles.addBtn, { backgroundColor: colors.primary }]}
             onPress={() => handleAddToCart(product)}
+            activeOpacity={0.8}
           >
             <Text style={styles.addBtnText}>+ Add</Text>
           </TouchableOpacity>
         </Animated.View>
-      </TouchableOpacity>
-    );
-  };
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+  const renderHorizontalCard = (product) => {
+  const scaleAnim = scaleAnims.current[product.id] || new Animated.Value(1);
+  const discountedPrice = getDiscountedPrice(product);
+  return (
+    <TouchableOpacity
+      key={product.id}
+      style={[styles.horizontalCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+      onPress={() => navigation.navigate('ProductDetail', { product })}
+      activeOpacity={0.85}
+    >
+      {product.discount > 0 && (
+        <View style={styles.hDiscountBadge}>
+          <Text style={styles.hDiscountText}>{product.discount}%</Text>
+        </View>
+      )}
+
+      {/* Auto image */}
+      <ProductImage product={product} size={80} style={{ marginBottom: 8 }} />
+
+      <Text style={[styles.horizontalCardName, { color: colors.text }]} numberOfLines={2}>
+        {product.name}
+      </Text>
+      <Text style={[styles.horizontalCardPrice, { color: colors.primary }]}>
+        ₹{discountedPrice || product.price}
+      </Text>
+      {discountedPrice && (
+        <Text style={styles.hOriginalPrice}>₹{product.price}</Text>
+      )}
+      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+        <TouchableOpacity
+          style={[styles.hAddBtn, { backgroundColor: colors.primary }]}
+          onPress={() => handleAddToCart(product)}
+        >
+          <Text style={styles.addBtnText}>+ Add</Text>
+        </TouchableOpacity>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+};
 
   return (
     <View style={[styles.wrapper, { backgroundColor: colors.background }]}>
@@ -257,7 +262,7 @@ export default function HomeScreen({ navigation }) {
             {getTotalItems() > 0 && (
               <TouchableOpacity
                 style={styles.cartPill}
-                onPress={() => navigation.navigate('Payment')}
+                onPress={() => navigation.getParent()?.navigate('Payment')}
               >
                 <Text style={styles.cartPillText}>
                   🛒 {getTotalItems()} items in cart → Pay now
@@ -317,7 +322,7 @@ export default function HomeScreen({ navigation }) {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.card, { backgroundColor: colors.card }]}
-                onPress={() => navigation.navigate('Payment')}
+                onPress={() => navigation.getParent()?.navigate('Payment')}
               >
                 <Text style={styles.cardIcon}>🛒</Text>
                 <Text style={[styles.cardLabel, { color: colors.text }]}>
