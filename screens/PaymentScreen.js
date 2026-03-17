@@ -1,3 +1,4 @@
+// screens/PaymentScreen.js
 import { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
@@ -5,10 +6,8 @@ import {
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useCart } from '../context/CartContext';
-import { getAuth } from 'firebase/auth';
 import { collection, addDoc } from 'firebase/firestore';
-import { db } from '../firebase';
-import { auth } from '../firebase';
+import { db, auth } from '../firebase';
 
 export default function PaymentScreen({ navigation }) {
   const { colors } = useTheme();
@@ -99,12 +98,15 @@ export default function PaymentScreen({ navigation }) {
         </Text>
 
         {cart.map((item) => (
-          <View
+          // ── Tap item → open Product Detail ──
+          <TouchableOpacity
             key={item.id}
             style={[styles.cartItem, {
               backgroundColor: colors.card,
               borderColor: colors.border
             }]}
+            onPress={() => navigation.navigate('ProductDetail', { product: item })}
+            activeOpacity={0.85}
           >
             <View style={styles.itemLeft}>
               <Text style={[styles.itemName, { color: colors.text }]}>
@@ -113,8 +115,14 @@ export default function PaymentScreen({ navigation }) {
               <Text style={[styles.itemDesc, { color: colors.subtext }]}>
                 {item.description}
               </Text>
-              <Text style={[styles.itemPrice, { color: colors.primary }]}>
+              <Text style={[styles.itemCategory, { color: colors.primary }]}>
+                {item.category}
+              </Text>
+              <Text style={[styles.itemPrice, { color: colors.subtext }]}>
                 ₹{item.price} each
+              </Text>
+              <Text style={[styles.tapHint, { color: colors.subtext }]}>
+                Tap to view details →
               </Text>
             </View>
 
@@ -122,6 +130,8 @@ export default function PaymentScreen({ navigation }) {
               <Text style={[styles.itemTotal, { color: colors.primary }]}>
                 ₹{item.price * item.qty}
               </Text>
+
+              {/* Qty controls */}
               <View style={styles.qtyRow}>
                 <TouchableOpacity
                   style={[styles.qtyBtn, { backgroundColor: colors.primary }]}
@@ -139,15 +149,15 @@ export default function PaymentScreen({ navigation }) {
                   <Text style={styles.qtyBtnText}>+</Text>
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                onPress={() => removeFromCart(item.id)}
-              >
-                <Text style={styles.removeText}>Remove</Text>
+
+              <TouchableOpacity onPress={() => removeFromCart(item.id)}>
+                <Text style={styles.removeText}>🗑️ Remove</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </TouchableOpacity>
         ))}
 
+        {/* Bill Summary */}
         <View style={[styles.billCard, {
           backgroundColor: colors.card,
           borderColor: colors.border
@@ -182,6 +192,7 @@ export default function PaymentScreen({ navigation }) {
           </View>
         </View>
 
+        {/* Payment Method */}
         <View style={[styles.paymentMethods, {
           backgroundColor: colors.card,
           borderColor: colors.border
@@ -201,6 +212,7 @@ export default function PaymentScreen({ navigation }) {
         <View style={{ height: 100 }} />
       </ScrollView>
 
+      {/* Bottom pay bar */}
       <View style={[styles.bottomBar, {
         backgroundColor: colors.card,
         borderTopColor: colors.border
@@ -221,9 +233,7 @@ export default function PaymentScreen({ navigation }) {
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.payBtnText}>
-              Pay ₹{total}
-            </Text>
+            <Text style={styles.payBtnText}>Pay ₹{total}</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -241,9 +251,7 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 64, marginBottom: 16 },
   emptyTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 8 },
   emptySub: { fontSize: 14, textAlign: 'center', marginBottom: 24 },
-  shopBtn: {
-    paddingHorizontal: 32, paddingVertical: 14, borderRadius: 12,
-  },
+  shopBtn: { paddingHorizontal: 32, paddingVertical: 14, borderRadius: 12 },
   shopBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
   sectionTitle: {
     fontSize: 16, fontWeight: 'bold',
@@ -251,26 +259,36 @@ const styles = StyleSheet.create({
   },
   cartItem: {
     marginHorizontal: 16, marginBottom: 10,
-    borderRadius: 12, padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    borderRadius: 14, padding: 16,
+    flexDirection: 'row', justifyContent: 'space-between',
     borderWidth: 0.5, elevation: 2,
   },
   itemLeft: { flex: 1, marginRight: 12 },
   itemName: { fontSize: 15, fontWeight: 'bold' },
-  itemDesc: { fontSize: 12, marginTop: 2 },
+  itemDesc: { fontSize: 11, marginTop: 2 },
+  itemCategory: {
+    fontSize: 10, paddingHorizontal: 7,
+    paddingVertical: 2, borderRadius: 20,
+    marginTop: 4, alignSelf: 'flex-start',
+    backgroundColor: '#f0eeff',
+  },
   itemPrice: { fontSize: 13, marginTop: 4 },
+  tapHint: { fontSize: 10, marginTop: 4, opacity: 0.6 },
   itemRight: { alignItems: 'flex-end' },
   itemTotal: { fontSize: 16, fontWeight: 'bold', marginBottom: 8 },
   qtyRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8,
+    flexDirection: 'row', alignItems: 'center',
+    gap: 8, marginBottom: 8,
   },
   qtyBtn: {
     width: 28, height: 28, borderRadius: 8,
     justifyContent: 'center', alignItems: 'center',
   },
   qtyBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  qtyText: { fontSize: 16, fontWeight: 'bold', minWidth: 20, textAlign: 'center' },
+  qtyText: {
+    fontSize: 16, fontWeight: 'bold',
+    minWidth: 20, textAlign: 'center',
+  },
   removeText: { fontSize: 12, color: '#e74c3c' },
   billCard: {
     margin: 16, borderRadius: 12,

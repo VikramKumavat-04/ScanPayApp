@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, ActivityIndicator
+  TouchableOpacity, ActivityIndicator, Animated, TextInput
 } from 'react-native';
 import { collection, getDocs, query, limit, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
@@ -14,11 +14,14 @@ export default function HomeScreen({ navigation }) {
   const { addToCart, getTotalItems } = useCart();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [recentlyAdded, setRecentlyAdded] = useState([]);
   const [userName, setUserName] = useState('');
+  const [searchText, setSearchText] = useState('');
+  const [wishlist, setWishlist] = useState([]);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const user = auth.currentUser;
+  const scaleAnims = useRef({});
+  const heartAnims = useRef({});
 
   useEffect(() => {
     fetchProducts();
@@ -26,283 +29,360 @@ export default function HomeScreen({ navigation }) {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      fetchUserName();
-    });
+    const unsubscribe = navigation.addListener('focus', fetchUserName);
     return unsubscribe;
   }, [navigation]);
 
   const fetchUserName = async () => {
     try {
       if (user) {
-        const userRef = doc(db, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists() && userSnap.data().name) {
-          setUserName(userSnap.data().name);
+        const snap = await getDoc(doc(db, 'users', user.uid));
+        if (snap.exists() && snap.data().name) {
+          setUserName(snap.data().name);
         } else {
-          const phone = user.phoneNumber || '';
-          setUserName('User ' + phone.slice(-4));
+          setUserName('User ' + (user.phoneNumber || '').slice(-4));
         }
       }
-    } catch (error) {
-      console.log('Error fetching user name:', error);
-    }
+    } catch (e) { console.log(e); }
   };
 
   const fetchProducts = async () => {
     try {
-      const q = query(collection(db, 'products'), limit(20));
-      const snapshot = await getDocs(q);
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const snap = await getDocs(query(collection(db, 'products'), limit(50)));
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setProducts(data);
-    } catch (error) {
-      console.log('Error fetching products:', error);
-    }
+      data.forEach(p => {
+        if (!scaleAnims.current[p.id]) scaleAnims.current[p.id] = new Animated.Value(1);
+        if (!heartAnims.current[p.id]) heartAnims.current[p.id] = new Animated.Value(1);
+      });
+    } catch (e) { console.log(e); }
     setLoading(false);
   };
 
   const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good Morning';
-    if (hour < 17) return 'Good Afternoon';
-    if (hour < 21) return 'Good Evening';
+    const h = new Date().getHours();
+    if (h < 12) return 'Good Morning';
+    if (h < 17) return 'Good Afternoon';
+    if (h < 21) return 'Good Evening';
     return 'Good Night';
   };
 
   const getGreetingEmoji = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return '🌅';
-    if (hour < 17) return '☀️';
-    if (hour < 21) return '🌆';
+    const h = new Date().getHours();
+    if (h < 12) return '🌅';
+    if (h < 17) return '☀️';
+    if (h < 21) return '🌆';
     return '🌙';
   };
 
-  const showToast = (message) => {
-    setToastMessage(message);
+  const showToast = (msg) => {
+    setToastMessage(msg);
     setToastVisible(true);
     setTimeout(() => setToastVisible(false), 2000);
   };
 
   const handleAddToCart = (product) => {
+    const anim = scaleAnims.current[product.id];
+    if (anim) {
+      Animated.sequence([
+        Animated.timing(anim, { toValue: 0.82, duration: 80, useNativeDriver: true }),
+        Animated.spring(anim, { toValue: 1, tension: 200, friction: 5, useNativeDriver: true }),
+      ]).start();
+    }
     addToCart(product);
-    setRecentlyAdded(prev => {
-      const exists = prev.find(p => p.id === product.id);
-      if (exists) return prev;
-      return [product, ...prev].slice(0, 5);
-    });
-    showToast(`✅ ${product.name} added!`);
+    showToast('✅ ' + product.name + ' added to cart!');
   };
 
-  const handleViewDetail = (product) => {
-    navigation.navigate('ProductDetail', { product });
+  const toggleWishlist = (product) => {
+    const anim = heartAnims.current[product.id];
+    if (anim) {
+      Animated.sequence([
+        Animated.timing(anim, { toValue: 1.5, duration: 150, useNativeDriver: true }),
+        Animated.spring(anim, { toValue: 1, tension: 200, friction: 4, useNativeDriver: true }),
+      ]).start();
+    }
+    const already = wishlist.find(w => w.id === product.id);
+    if (already) {
+      setWishlist(prev => prev.filter(w => w.id !== product.id));
+      showToast('💔 Removed from wishlist');
+    } else {
+      setWishlist(prev => [...prev, product]);
+      showToast('❤️ Added to wishlist!');
+    }
   };
+
+  const getCategoryEmoji = (cat) => {
+    switch (cat?.toLowerCase()) {
+      case 'food': return '🍜';
+      case 'snacks': return '🍟';
+      case 'dairy': return '🥛';
+      case 'beverages': return '🥤';
+      case 'bakery': return '🍞';
+      case 'beauty': return '💄';
+      case 'household': return '🏠';
+      default: return '🛍️';
+    }
+  };
+
+  const getDiscountedPrice = (product) => {
+    if (product.discount && product.discount > 0) {
+      return Math.round(product.price * (1 - product.discount / 100));
+    }
+    return null;
+  };
+
+  const filtered = searchText.trim()
+    ? products.filter(p =>
+        p.name?.toLowerCase().includes(searchText.toLowerCase()) ||
+        p.category?.toLowerCase().includes(searchText.toLowerCase())
+      )
+    : products;
 
   const recommended = products.filter(p => p.category === 'Food');
   const snacks = products.filter(p => p.category === 'Snacks');
   const dairy = products.filter(p => p.category === 'Dairy');
+  const beauty = products.filter(p => p.category === 'Beauty');
 
-  const renderHorizontalCard = (product, emoji) => (
-    <TouchableOpacity
-      key={product.id}
-      style={[styles.horizontalCard, {
-        backgroundColor: colors.card,
-        borderColor: colors.border
-      }]}
-      onPress={() => handleViewDetail(product)}
-    >
-      <Text style={styles.horizontalCardIcon}>{emoji}</Text>
-      <Text
-        style={[styles.horizontalCardName, { color: colors.text }]}
-        numberOfLines={2}
-      >
-        {product.name}
-      </Text>
-      <Text style={[styles.horizontalCardPrice, { color: colors.primary }]}>
-        ₹{product.price}
-      </Text>
+  const renderProductCard = (product) => {
+    const scaleAnim = scaleAnims.current[product.id] || new Animated.Value(1);
+    const heartAnim = heartAnims.current[product.id] || new Animated.Value(1);
+    const isWishlisted = !!wishlist.find(w => w.id === product.id);
+    const discountedPrice = getDiscountedPrice(product);
+
+    return (
       <TouchableOpacity
-        style={[styles.addBtn, { backgroundColor: colors.primary }]}
-        onPress={() => handleAddToCart(product)}
+        key={product.id}
+        style={[styles.productCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+        onPress={() => navigation.navigate('ProductDetail', { product })}
+        activeOpacity={0.85}
       >
-        <Text style={styles.addBtnText}>+ Add</Text>
+        {product.discount > 0 && (
+          <View style={styles.discountBadge}>
+            <Text style={styles.discountText}>{product.discount}% OFF</Text>
+          </View>
+        )}
+        <View style={styles.productLeft}>
+          <Text style={styles.productEmoji}>{getCategoryEmoji(product.category)}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.productName, { color: colors.text }]}>{product.name}</Text>
+            <Text style={[styles.productDesc, { color: colors.subtext }]} numberOfLines={1}>
+              {product.description}
+            </Text>
+            <View style={styles.priceRow}>
+              <Text style={[styles.productPrice, { color: colors.primary }]}>
+                ₹{discountedPrice || product.price}
+              </Text>
+              {discountedPrice && (
+                <Text style={styles.originalPrice}>₹{product.price}</Text>
+              )}
+            </View>
+            <Text style={[styles.productCategory, { color: colors.primary }]}>
+              {product.category}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.productRight}>
+          <Animated.View style={{ transform: [{ scale: heartAnim }] }}>
+            <TouchableOpacity onPress={() => toggleWishlist(product)} style={styles.heartBtn}>
+              <Text style={styles.heartIcon}>{isWishlisted ? '❤️' : '🤍'}</Text>
+            </TouchableOpacity>
+          </Animated.View>
+          <Text style={[styles.productStock, { color: colors.subtext }]}>
+            Stock: {product.stock}
+          </Text>
+          <Animated.View style={{ transform: [{ scale: scaleAnim }], marginTop: 8 }}>
+            <TouchableOpacity
+              style={[styles.addBtn, { backgroundColor: colors.primary }]}
+              onPress={() => handleAddToCart(product)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.addBtnText}>+ Add</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
       </TouchableOpacity>
-    </TouchableOpacity>
-  );
+    );
+  };
+
+  const renderHorizontalCard = (product) => {
+    const scaleAnim = scaleAnims.current[product.id] || new Animated.Value(1);
+    const discountedPrice = getDiscountedPrice(product);
+    return (
+      <TouchableOpacity
+        key={product.id}
+        style={[styles.horizontalCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+        onPress={() => navigation.navigate('ProductDetail', { product })}
+        activeOpacity={0.85}
+      >
+        {product.discount > 0 && (
+          <View style={styles.hDiscountBadge}>
+            <Text style={styles.hDiscountText}>{product.discount}%</Text>
+          </View>
+        )}
+        <Text style={styles.horizontalCardIcon}>{getCategoryEmoji(product.category)}</Text>
+        <Text style={[styles.horizontalCardName, { color: colors.text }]} numberOfLines={2}>
+          {product.name}
+        </Text>
+        <Text style={[styles.horizontalCardPrice, { color: colors.primary }]}>
+          ₹{discountedPrice || product.price}
+        </Text>
+        {discountedPrice && (
+          <Text style={styles.hOriginalPrice}>₹{product.price}</Text>
+        )}
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+          <TouchableOpacity
+            style={[styles.hAddBtn, { backgroundColor: colors.primary }]}
+            onPress={() => handleAddToCart(product)}
+          >
+            <Text style={styles.addBtnText}>+ Add</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={[styles.wrapper, { backgroundColor: colors.background }]}>
       <Toast message={toastMessage} visible={toastVisible} />
-      <ScrollView style={styles.container}>
+      <ScrollView
+        style={styles.container}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {!searchText && (
+          <View style={[styles.banner, { backgroundColor: colors.banner }]}>
+            <Text style={styles.bannerGreeting}>{getGreetingEmoji()} {getGreeting()}!</Text>
+            <Text style={styles.bannerName}>{userName} 👋</Text>
+            <Text style={styles.bannerSub}>Scan or tap to add products</Text>
+            {getTotalItems() > 0 && (
+              <TouchableOpacity
+                style={styles.cartPill}
+                onPress={() => navigation.navigate('Payment')}
+              >
+                <Text style={styles.cartPillText}>
+                  🛒 {getTotalItems()} items in cart → Pay now
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
-        <View style={[styles.banner, { backgroundColor: colors.banner }]}>
-          <Text style={styles.bannerGreeting}>
-            {getGreetingEmoji()} {getGreeting()}!
-          </Text>
-          <Text style={styles.bannerName}>
-            {userName} 👋
-          </Text>
-          <Text style={styles.bannerSub}>
-            Scan or tap to add products
-          </Text>
-          {getTotalItems() > 0 && (
-            <TouchableOpacity
-              style={styles.cartPill}
-              onPress={() => navigation.navigate('Payment')}
-            >
-              <Text style={styles.cartPillText}>
-                🛒 {getTotalItems()} items in cart → Pay now
-              </Text>
+        {/* Search bar */}
+        <View style={[styles.searchBar, {
+          backgroundColor: colors.card,
+          borderColor: searchText ? colors.primary : colors.border
+        }]}>
+          <Text style={styles.searchIcon}>🔍</Text>
+          <TextInput
+            style={[styles.searchInput, { color: colors.text }]}
+            placeholder="Search products, categories..."
+            placeholderTextColor={colors.subtext}
+            value={searchText}
+            onChangeText={setSearchText}
+            returnKeyType="search"
+          />
+          {searchText.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchText('')}>
+              <Text style={[styles.clearBtn, { color: colors.subtext }]}>✕</Text>
             </TouchableOpacity>
           )}
         </View>
 
-        <View style={styles.cardRow}>
-          <TouchableOpacity
-            style={[styles.card, { backgroundColor: colors.card }]}
-            onPress={() => navigation.navigate('Scan')}
-          >
-            <Text style={styles.cardIcon}>📷</Text>
-            <Text style={[styles.cardLabel, { color: colors.text }]}>
-              Scan Product
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.card, { backgroundColor: colors.card }]}
-            onPress={() => navigation.navigate('Payment')}
-          >
-            <Text style={styles.cardIcon}>🛒</Text>
-            <Text style={[styles.cardLabel, { color: colors.text }]}>
-              My Cart {getTotalItems() > 0 ? `(${getTotalItems()})` : ''}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {recentlyAdded.length > 0 && (
+        {searchText.trim() ? (
           <>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              🕐 Recently Added
+              🔎 "{searchText}" — {filtered.length} results
             </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalContent}
-            >
-              {recentlyAdded.map(product =>
-                renderHorizontalCard(product, '🔁')
-              )}
-            </ScrollView>
+            {filtered.length === 0 ? (
+              <View style={[styles.emptyBox, { backgroundColor: colors.card }]}>
+                <Text style={{ fontSize: 40 }}>😕</Text>
+                <Text style={[styles.emptyText, { color: colors.subtext }]}>
+                  No products found
+                </Text>
+              </View>
+            ) : (
+              filtered.map(p => renderProductCard(p))
+            )}
           </>
-        )}
-
-        {recommended.length > 0 && (
-          <>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              ⭐ Recommended
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalContent}
-            >
-              {recommended.map(product =>
-                renderHorizontalCard(product, '🍜')
-              )}
-            </ScrollView>
-          </>
-        )}
-
-        {snacks.length > 0 && (
-          <>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              🍟 Snacks
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalContent}
-            >
-              {snacks.map(product =>
-                renderHorizontalCard(product, '🍟')
-              )}
-            </ScrollView>
-          </>
-        )}
-
-        {dairy.length > 0 && (
-          <>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              🥛 Dairy
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalContent}
-            >
-              {dairy.map(product =>
-                renderHorizontalCard(product, '🥛')
-              )}
-            </ScrollView>
-          </>
-        )}
-
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          🛍️ All Products
-        </Text>
-
-        {loading ? (
-          <ActivityIndicator
-            size="large"
-            color={colors.primary}
-            style={{ marginTop: 20 }}
-          />
-        ) : products.length === 0 ? (
-          <View style={[styles.emptyBox, { backgroundColor: colors.card }]}>
-            <Text style={[styles.emptyText, { color: colors.subtext }]}>
-              No products yet
-            </Text>
-          </View>
         ) : (
-          products.map(product => (
-            <TouchableOpacity
-              key={product.id}
-              style={[styles.productCard, {
-                backgroundColor: colors.card,
-                borderColor: colors.border
-              }]}
-              onPress={() => handleViewDetail(product)}
-            >
-              <View style={styles.productLeft}>
-                <Text style={[styles.productName, { color: colors.text }]}>
-                  {product.name}
+          <>
+            {/* Quick actions */}
+            <View style={styles.cardRow}>
+              <TouchableOpacity
+                style={[styles.card, { backgroundColor: colors.card }]}
+                onPress={() => navigation.navigate('Scan')}
+              >
+                <Text style={styles.cardIcon}>📷</Text>
+                <Text style={[styles.cardLabel, { color: colors.text }]}>Scan Product</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.card, { backgroundColor: colors.card }]}
+                onPress={() => navigation.navigate('Payment')}
+              >
+                <Text style={styles.cardIcon}>🛒</Text>
+                <Text style={[styles.cardLabel, { color: colors.text }]}>
+                  My Cart {getTotalItems() > 0 ? '(' + getTotalItems() + ')' : ''}
                 </Text>
-                <Text style={[styles.productDesc, { color: colors.subtext }]}>
-                  {product.description}
-                </Text>
-                <Text style={[styles.productCategory, { color: colors.primary }]}>
-                  {product.category}
-                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Wishlist */}
+            {wishlist.length > 0 && (
+              <>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>❤️ Your Wishlist</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalContent}>
+                  {wishlist.map(p => renderHorizontalCard(p))}
+                </ScrollView>
+              </>
+            )}
+
+            {recommended.length > 0 && (
+              <>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>⭐ Recommended</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalContent}>
+                  {recommended.map(p => renderHorizontalCard(p))}
+                </ScrollView>
+              </>
+            )}
+
+            {snacks.length > 0 && (
+              <>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>🍟 Snacks</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalContent}>
+                  {snacks.map(p => renderHorizontalCard(p))}
+                </ScrollView>
+              </>
+            )}
+
+            {dairy.length > 0 && (
+              <>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>🥛 Dairy</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalContent}>
+                  {dairy.map(p => renderHorizontalCard(p))}
+                </ScrollView>
+              </>
+            )}
+
+            {beauty.length > 0 && (
+              <>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>💄 Beauty</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalContent}>
+                  {beauty.map(p => renderHorizontalCard(p))}
+                </ScrollView>
+              </>
+            )}
+
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>🛍️ All Products</Text>
+            {loading ? (
+              <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 20 }} />
+            ) : products.length === 0 ? (
+              <View style={[styles.emptyBox, { backgroundColor: colors.card }]}>
+                <Text style={[styles.emptyText, { color: colors.subtext }]}>No products yet</Text>
               </View>
-              <View style={styles.productRight}>
-                <Text style={[styles.productPrice, { color: colors.primary }]}>
-                  ₹{product.price}
-                </Text>
-                <Text style={[styles.productStock, { color: colors.subtext }]}>
-                  Stock: {product.stock}
-                </Text>
-                <TouchableOpacity
-                  style={[styles.addBtn, {
-                    backgroundColor: colors.primary, marginTop: 8
-                  }]}
-                  onPress={() => handleAddToCart(product)}
-                >
-                  <Text style={styles.addBtnText}>+ Add</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-          ))
+            ) : (
+              products.map(p => renderProductCard(p))
+            )}
+          </>
         )}
 
         <View style={{ height: 32 }} />
@@ -315,29 +395,29 @@ const styles = StyleSheet.create({
   wrapper: { flex: 1 },
   container: { flex: 1 },
   banner: { padding: 24, margin: 16, borderRadius: 20 },
-  bannerGreeting: {
-    color: 'rgba(255,255,255,0.8)', fontSize: 14, marginBottom: 2,
-  },
-  bannerName: {
-    color: '#fff', fontSize: 24, fontWeight: 'bold', marginBottom: 4,
-  },
-  bannerSub: {
-    color: 'rgba(255,255,255,0.8)', fontSize: 13, marginBottom: 4,
-  },
+  bannerGreeting: { color: 'rgba(255,255,255,0.8)', fontSize: 14, marginBottom: 2 },
+  bannerName: { color: '#fff', fontSize: 24, fontWeight: 'bold', marginBottom: 4 },
+  bannerSub: { color: 'rgba(255,255,255,0.8)', fontSize: 13 },
   cartPill: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    borderRadius: 20, paddingHorizontal: 14,
-    paddingVertical: 8, marginTop: 10, alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 20,
+    paddingHorizontal: 14, paddingVertical: 8,
+    marginTop: 10, alignSelf: 'flex-start',
   },
   cartPillText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  searchBar: {
+    flexDirection: 'row', alignItems: 'center',
+    marginHorizontal: 16, marginBottom: 12, marginTop: 4,
+    borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10,
+    borderWidth: 1.5, elevation: 2,
+  },
+  searchIcon: { fontSize: 16, marginRight: 8 },
+  searchInput: { flex: 1, fontSize: 15 },
+  clearBtn: { fontSize: 16, paddingLeft: 8 },
   cardRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     marginHorizontal: 16, marginBottom: 8,
   },
-  card: {
-    borderRadius: 14, padding: 20,
-    alignItems: 'center', width: '47%', elevation: 3,
-  },
+  card: { borderRadius: 14, padding: 20, alignItems: 'center', width: '47%', elevation: 3 },
   cardIcon: { fontSize: 28, marginBottom: 8 },
   cardLabel: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
   sectionTitle: {
@@ -346,40 +426,57 @@ const styles = StyleSheet.create({
   },
   horizontalContent: { paddingHorizontal: 16, paddingBottom: 8 },
   horizontalCard: {
-    width: 130, borderRadius: 14,
-    padding: 12, marginRight: 10,
-    alignItems: 'center', elevation: 2, borderWidth: 0.5,
+    width: 135, borderRadius: 14, padding: 12,
+    marginRight: 10, alignItems: 'center', elevation: 2, borderWidth: 0.5,
   },
+  hDiscountBadge: {
+    position: 'absolute', top: 8, right: 8,
+    backgroundColor: '#e74c3c', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2,
+  },
+  hDiscountText: { color: '#fff', fontSize: 9, fontWeight: 'bold' },
   horizontalCardIcon: { fontSize: 28, marginBottom: 6 },
   horizontalCardName: {
-    fontSize: 12, fontWeight: '600',
-    textAlign: 'center', marginBottom: 4,
-    width: '100%', minHeight: 32,
+    fontSize: 12, fontWeight: '600', textAlign: 'center',
+    marginBottom: 4, minHeight: 32,
   },
-  horizontalCardPrice: { fontSize: 14, fontWeight: 'bold', marginBottom: 8 },
-  addBtn: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5 },
+  horizontalCardPrice: { fontSize: 14, fontWeight: 'bold' },
+  hOriginalPrice: {
+    fontSize: 11, color: '#aaa',
+    textDecorationLine: 'line-through', marginBottom: 6,
+  },
+  hAddBtn: { borderRadius: 8, paddingHorizontal: 14, paddingVertical: 5, marginTop: 4 },
   addBtnText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
   productCard: {
-    marginHorizontal: 16, marginBottom: 10,
-    borderRadius: 14, padding: 16,
+    marginHorizontal: 16, marginBottom: 10, borderRadius: 14, padding: 14,
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', elevation: 2, borderWidth: 0.5,
   },
-  productLeft: { flex: 1, marginRight: 8 },
-  productName: { fontSize: 15, fontWeight: 'bold' },
-  productDesc: { fontSize: 12, marginTop: 2 },
+  discountBadge: {
+    position: 'absolute', top: 10, left: 10,
+    backgroundColor: '#e74c3c', borderRadius: 6,
+    paddingHorizontal: 6, paddingVertical: 2, zIndex: 1,
+  },
+  discountText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
+  productLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, marginRight: 8 },
+  productEmoji: { fontSize: 32 },
+  productName: { fontSize: 14, fontWeight: 'bold' },
+  productDesc: { fontSize: 11, marginTop: 1 },
+  priceRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 },
+  productPrice: { fontSize: 16, fontWeight: 'bold' },
+  originalPrice: { fontSize: 12, color: '#aaa', textDecorationLine: 'line-through' },
   productCategory: {
-    fontSize: 11, paddingHorizontal: 8,
-    paddingVertical: 2, borderRadius: 20,
-    marginTop: 4, alignSelf: 'flex-start',
+    fontSize: 10, paddingHorizontal: 7, paddingVertical: 2,
+    borderRadius: 20, marginTop: 4, alignSelf: 'flex-start',
     backgroundColor: '#f0eeff',
   },
   productRight: { alignItems: 'flex-end' },
-  productPrice: { fontSize: 18, fontWeight: 'bold' },
-  productStock: { fontSize: 11, marginTop: 2 },
+  heartBtn: { padding: 4 },
+  heartIcon: { fontSize: 20 },
+  productStock: { fontSize: 10, marginTop: 4 },
+  addBtn: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5 },
   emptyBox: {
-    margin: 16, borderRadius: 12,
-    padding: 32, alignItems: 'center',
+    margin: 16, borderRadius: 12, padding: 32,
+    alignItems: 'center', gap: 8,
   },
   emptyText: { fontSize: 14 },
 });
