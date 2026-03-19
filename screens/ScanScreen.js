@@ -1,5 +1,5 @@
 // screens/ScanScreen.js
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, ScrollView, TextInput,
@@ -39,6 +39,31 @@ export default function ScanScreen({ navigation }) {
     'Beauty', 'Household', 'Bakery', 'General'
   ];
 
+  // ── Auto open camera when tab is focused ──────────
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      // Only auto open if permission already granted
+      // Don't request permission automatically
+      if (permission?.granted) {
+        setScanning(true);
+        setScanned(false);
+        isProcessing.current = false;
+      }
+    });
+    return unsubscribe;
+  }, [navigation, permission]);
+
+  // ── Close camera when tab loses focus ─────────────
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('blur', () => {
+      setScanning(false);
+      setTorch(false);
+      setScanned(false);
+      isProcessing.current = false;
+    });
+    return unsubscribe;
+  }, [navigation]);
+
   const showToastMsg = (msg) => {
     setToastMsg(msg);
     setToastVisible(true);
@@ -71,6 +96,8 @@ export default function ScanScreen({ navigation }) {
       setManualCategory('General');
       setScanned(false);
       isProcessing.current = false;
+      // Resume scanning after hiding form
+      setScanning(true);
     });
   };
 
@@ -102,12 +129,14 @@ export default function ScanScreen({ navigation }) {
         addToHistory(product);
         showSuccess(product.name + ' added!');
         setTimeout(() => Vibration.vibrate([0, 80, 80, 80]), 150);
+        // Auto resume scanning
         setTimeout(() => {
           setScanned(false);
           setScanning(true);
           isProcessing.current = false;
         }, 1500);
       } else {
+        // Not found — show manual entry
         setNotFoundBarcode(data);
         setShowManualForm(true);
         showManualCard();
@@ -131,7 +160,6 @@ export default function ScanScreen({ navigation }) {
       showToastMsg('⚠️ Please enter valid price!');
       return;
     }
-
     setSaving(true);
     const newProduct = {
       name: manualName.trim(),
@@ -142,9 +170,7 @@ export default function ScanScreen({ navigation }) {
       stock: 99,
       discount: 0,
     };
-
     try {
-      // Save to Firebase automatically
       const docRef = await addDoc(collection(db, 'products'), newProduct);
       const savedProduct = { id: docRef.id, ...newProduct };
       addToCart(savedProduct);
@@ -153,10 +179,6 @@ export default function ScanScreen({ navigation }) {
       showToastMsg('✅ ' + newProduct.name + ' saved & added!');
       setSaving(false);
       hideManualCard();
-      setTimeout(() => {
-        setScanned(false);
-        setScanning(true);
-      }, 1000);
     } catch (e) {
       console.log('Save error:', e);
       showToastMsg('❌ Could not save. Try again!');
@@ -182,26 +204,37 @@ export default function ScanScreen({ navigation }) {
     inputRange: [0, 0.5, 1], outputRange: [0, 1.2, 1],
   });
 
-  if (!permission) return (
-    <View style={[styles.center, { backgroundColor: colors.background }]}>
-      <ActivityIndicator size="large" color={colors.primary} />
-    </View>
-  );
+  // ── Permission not yet determined ─────────────────
+  if (!permission) {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
-  if (!permission.granted) return (
-    <View style={[styles.center, { backgroundColor: colors.background }]}>
-      <Text style={{ fontSize: 56, marginBottom: 16 }}>📷</Text>
-      <Text style={[styles.permText, { color: colors.text }]}>
-        Camera access needed to scan products
-      </Text>
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: colors.primary }]}
-        onPress={requestPermission}
-      >
-        <Text style={styles.buttonText}>Allow Camera</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  // ── Permission denied — show allow button ──────────
+  if (!permission.granted) {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <Text style={{ fontSize: 56, marginBottom: 16 }}>📷</Text>
+        <Text style={[styles.permText, { color: colors.text }]}>
+          Camera access needed to scan products
+        </Text>
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.primary }]}
+          onPress={async () => {
+            const result = await requestPermission();
+            if (result.granted) {
+              setScanning(true);
+            }
+          }}
+        >
+          <Text style={styles.buttonText}>Allow Camera</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -213,6 +246,7 @@ export default function ScanScreen({ navigation }) {
         </View>
       )}
 
+      {/* ── Camera view ── */}
       {scanning ? (
         <View style={styles.scannerContainer}>
           <CameraView
@@ -260,10 +294,7 @@ export default function ScanScreen({ navigation }) {
             {getTotalItems() > 0 && (
               <TouchableOpacity
                 style={styles.cartCount}
-                onPress={() => {
-                  setScanning(false);
-                  navigation.navigate('Payment');
-                }}
+                onPress={() => navigation.navigate('Payment')}
               >
                 <Text style={styles.cartCountText}>
                   🛒 {getTotalItems()} items → Pay
@@ -296,20 +327,6 @@ export default function ScanScreen({ navigation }) {
             </Text>
           </View>
 
-          {/* Cancel */}
-          <TouchableOpacity
-            style={styles.cancelBtn}
-            onPress={() => {
-              setScanning(false);
-              setScanned(false);
-              setTorch(false);
-              setZoom(0);
-              isProcessing.current = false;
-            }}
-          >
-            <Text style={styles.cancelText}>✕ Cancel</Text>
-          </TouchableOpacity>
-
           {/* History dropdown */}
           {showHistory && scanHistory.length > 0 && (
             <View style={styles.historyDropdown}>
@@ -334,89 +351,88 @@ export default function ScanScreen({ navigation }) {
         </View>
 
       ) : (
-        <ScrollView
-          style={styles.content}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={[styles.scanBox, { backgroundColor: colors.card }]}>
-            <Text style={styles.scanIcon}>📷</Text>
-            <Text style={[styles.scanTitle, { color: colors.text }]}>
-              Scan a Product
-            </Text>
-            <Text style={[styles.scanSub, { color: colors.subtext }]}>
-              Scan barcode → instantly added to cart!
-            </Text>
-            <View style={styles.featuresRow}>
-              <View style={[styles.featurePill, { backgroundColor: colors.background }]}>
-                <Text style={[styles.featureText, { color: colors.text }]}>⚡ Instant add</Text>
+        // ── Not scanning — show history and cart ──
+        !showManualForm && (
+          <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
+            <View style={[styles.scanBox, { backgroundColor: colors.card }]}>
+              <Text style={styles.scanIcon}>📷</Text>
+              <Text style={[styles.scanTitle, { color: colors.text }]}>
+                Ready to Scan
+              </Text>
+              <Text style={[styles.scanSub, { color: colors.subtext }]}>
+                Camera opens automatically when you tap Scan tab
+              </Text>
+              <View style={styles.featuresRow}>
+                <View style={[styles.featurePill, { backgroundColor: colors.background }]}>
+                  <Text style={[styles.featureText, { color: colors.text }]}>⚡ Instant add</Text>
+                </View>
+                <View style={[styles.featurePill, { backgroundColor: colors.background }]}>
+                  <Text style={[styles.featureText, { color: colors.text }]}>💾 Auto save</Text>
+                </View>
+                <View style={[styles.featurePill, { backgroundColor: colors.background }]}>
+                  <Text style={[styles.featureText, { color: colors.text }]}>🔦 Torch</Text>
+                </View>
               </View>
-              <View style={[styles.featurePill, { backgroundColor: colors.background }]}>
-                <Text style={[styles.featureText, { color: colors.text }]}>💾 Auto save</Text>
-              </View>
-              <View style={[styles.featurePill, { backgroundColor: colors.background }]}>
-                <Text style={[styles.featureText, { color: colors.text }]}>🔦 Torch</Text>
-              </View>
+              <TouchableOpacity
+                style={[styles.button, { backgroundColor: colors.primary }]}
+                onPress={() => {
+                  setScanned(false);
+                  setScanning(true);
+                  isProcessing.current = false;
+                }}
+              >
+                <Text style={styles.buttonText}>Open Scanner</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={[styles.button, { backgroundColor: colors.primary }]}
-              onPress={() => {
-                setScanned(false);
-                setScanning(true);
-                setZoom(0);
-                isProcessing.current = false;
-              }}
-            >
-              <Text style={styles.buttonText}>Open Scanner</Text>
-            </TouchableOpacity>
-          </View>
 
-          {getTotalItems() > 0 && (
-            <TouchableOpacity
-              style={[styles.cartBanner, { backgroundColor: colors.primary }]}
-              onPress={() => navigation.navigate('Payment')}
-            >
-              <Text style={styles.cartBannerText}>
-                🛒 {getTotalItems()} items in cart
-              </Text>
-              <Text style={styles.cartBannerSub}>Tap to go to Cart →</Text>
-            </TouchableOpacity>
-          )}
+            {getTotalItems() > 0 && (
+              <TouchableOpacity
+                style={[styles.cartBanner, { backgroundColor: colors.primary }]}
+                onPress={() => navigation.navigate('Payment')}
+              >
+                <Text style={styles.cartBannerText}>
+                  🛒 {getTotalItems()} items in cart
+                </Text>
+                <Text style={styles.cartBannerSub}>Tap to go to Cart →</Text>
+              </TouchableOpacity>
+            )}
 
-          {/* Scan history */}
-          {scanHistory.length > 0 && (
-            <View style={[styles.historySection, { backgroundColor: colors.card }]}>
-              <Text style={[styles.historySectionTitle, { color: colors.text }]}>
-                🕐 Recently Scanned
-              </Text>
-              {scanHistory.map((item, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[styles.historyRow, { borderColor: colors.border }]}
-                  onPress={() => navigation.navigate('ProductDetail', { product: item })}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.historyName, { color: colors.text }]}>
-                      {item.name}
-                    </Text>
-                    <Text style={{ fontSize: 11, color: colors.subtext }}>
-                      {item.category} • ₹{item.price}
-                    </Text>
-                  </View>
+            {/* Scan history */}
+            {scanHistory.length > 0 && (
+              <View style={[styles.historySection, { backgroundColor: colors.card }]}>
+                <Text style={[styles.historySectionTitle, { color: colors.text }]}>
+                  🕐 Recently Scanned
+                </Text>
+                {scanHistory.map((item, index) => (
                   <TouchableOpacity
-                    style={[styles.historyAddBtn, { backgroundColor: colors.primary }]}
-                    onPress={() => {
-                      addToCart(item);
-                      Vibration.vibrate(80);
-                      showToastMsg('✅ ' + item.name + ' added!');
-                    }}
+                    key={index}
+                    style={[styles.historyRow, { borderColor: colors.border }]}
+                    onPress={() => navigation.navigate('ProductDetail', { product: item })}
                   >
-                    <Text style={styles.historyAddText}>+ Add</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.historyName, { color: colors.text }]}>
+                        {item.name}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: colors.subtext }}>
+                        {item.category} • ₹{item.price}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.historyAddBtn, { backgroundColor: colors.primary }]}
+                      onPress={() => {
+                        addToCart(item);
+                        Vibration.vibrate(80);
+                        showToastMsg('✅ ' + item.name + ' added!');
+                      }}
+                    >
+                      <Text style={styles.historyAddText}>+ Add</Text>
+                    </TouchableOpacity>
                   </TouchableOpacity>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </ScrollView>
+                ))}
+              </View>
+            )}
+          </ScrollView>
+        )
       )}
 
       {/* Loading */}
@@ -439,7 +455,7 @@ export default function ScanScreen({ navigation }) {
         <Text style={styles.successText}>Added to Cart!</Text>
       </Animated.View>
 
-      {/* Manual entry form with KeyboardAvoidingView */}
+      {/* Manual entry form */}
       {showManualForm && (
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -464,7 +480,6 @@ export default function ScanScreen({ navigation }) {
               Barcode: {notFoundBarcode}
             </Text>
 
-            {/* Save notice */}
             <View style={styles.saveNotice}>
               <Text style={styles.saveNoticeText}>
                 💾 Will be saved to database automatically!
@@ -499,7 +514,6 @@ export default function ScanScreen({ navigation }) {
               returnKeyType="done"
             />
 
-            {/* Category chips */}
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -541,10 +555,7 @@ export default function ScanScreen({ navigation }) {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.skipBtn}
-              onPress={hideManualCard}
-            >
+            <TouchableOpacity style={styles.skipBtn} onPress={hideManualCard}>
               <Text style={[styles.skipText, { color: colors.subtext }]}>
                 Skip & Scan Another
               </Text>
@@ -575,9 +586,8 @@ const styles = StyleSheet.create({
   scanTitle: { fontSize: 22, fontWeight: 'bold' },
   scanSub: { fontSize: 13, textAlign: 'center', marginTop: 8, marginBottom: 16 },
   featuresRow: {
-    flexDirection: 'row', gap: 8,
-    marginBottom: 20, flexWrap: 'wrap',
-    justifyContent: 'center',
+    flexDirection: 'row', gap: 8, marginBottom: 20,
+    flexWrap: 'wrap', justifyContent: 'center',
   },
   featurePill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   featureText: { fontSize: 12, fontWeight: '500' },
@@ -643,7 +653,7 @@ const styles = StyleSheet.create({
   },
   cartCountText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
   zoomControls: {
-    position: 'absolute', bottom: 110,
+    position: 'absolute', bottom: 60,
     left: 30, right: 30,
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -662,12 +672,6 @@ const styles = StyleSheet.create({
   },
   zoomFill: { height: 4, backgroundColor: '#6C63FF', borderRadius: 2 },
   zoomValue: { color: '#fff', fontSize: 12, fontWeight: '600', minWidth: 32 },
-  cancelBtn: {
-    position: 'absolute', bottom: 44, alignSelf: 'center',
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    paddingHorizontal: 32, paddingVertical: 12, borderRadius: 25,
-  },
-  cancelText: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
   historyDropdown: {
     position: 'absolute', top: 110,
     left: 16, right: 16,

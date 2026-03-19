@@ -2,14 +2,24 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { initializeAuth, getAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import Constants from 'expo-constants';
+
+const {
+  firebaseApiKey,
+  firebaseAuthDomain,
+  firebaseProjectId,
+  firebaseStorageBucket,
+  firebaseMessagingSenderId,
+  firebaseAppId,
+} = Constants.expoConfig.extra;
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBduxEyIkhZvEmE0cl1alsWKFujixxGx9g",
-  authDomain: "scanpayapp-5f704.firebaseapp.com",
-  projectId: "scanpayapp-5f704",
-  storageBucket: "scanpayapp-5f704.firebasestorage.app",
-  messagingSenderId: "383166108649",
-  appId: "1:383166108649:web:64fef456f22fd91290b178"
+  apiKey: firebaseApiKey,
+  authDomain: firebaseAuthDomain,
+  projectId: firebaseProjectId,
+  storageBucket: firebaseStorageBucket,
+  messagingSenderId: firebaseMessagingSenderId,
+  appId: firebaseAppId,
 };
 
 let app;
