@@ -9,6 +9,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './firebase';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { CartProvider, useCart } from './context/CartContext';
+import RazorpayScreen from './screens/RazorpayScreen';
 
 import HomeScreen from './screens/HomeScreen';
 import ScanScreen from './screens/ScanScreen';
@@ -208,6 +209,17 @@ function RootNav() {
                 headerLeft: () => <BackButton navigation={navigation} />,
               })}
             />
+            <Stack.Screen
+  name="RazorpayScreen"
+  component={RazorpayScreen}
+  options={({ navigation }) => ({
+    headerShown: true,
+    title: '💳 Payment',
+    headerStyle: { backgroundColor: '#6C63FF' },
+    headerTintColor: '#fff',
+    headerLeft: () => <BackButton navigation={navigation} />,
+  })}
+/>
           </>
         ) : (
           <>

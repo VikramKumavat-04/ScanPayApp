@@ -30,6 +30,7 @@ export default {
     },
     plugins: [
       "expo-camera",
+      
       [
         "expo-build-properties",
         {
@@ -51,6 +52,7 @@ export default {
       firebaseStorageBucket: process.env.FIREBASE_STORAGE_BUCKET,
       firebaseMessagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
       firebaseAppId: process.env.FIREBASE_APP_ID,
+      razorpayKeyId: process.env.RAZORPAY_KEY_ID,
     }
   }
 };
