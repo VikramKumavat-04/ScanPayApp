@@ -1,3 +1,5 @@
+
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { initializeAuth, getAuth, getReactNativePersistence } from 'firebase/auth';
@@ -7,28 +9,22 @@ import Constants from 'expo-constants';
 const extra = Constants.expoConfig?.extra || {};
 
 const firebaseConfig = {
-  apiKey: extra.firebaseApiKey,
-  authDomain: extra.firebaseAuthDomain,
-  projectId: extra.firebaseProjectId,
-  storageBucket: extra.firebaseStorageBucket,
+  apiKey:            extra.firebaseApiKey,
+  authDomain:        extra.firebaseAuthDomain,
+  projectId:         extra.firebaseProjectId,
+  storageBucket:     extra.firebaseStorageBucket,
   messagingSenderId: extra.firebaseMessagingSenderId,
-  appId: extra.firebaseAppId,
+  appId:             extra.firebaseAppId,
 };
 
-let app;
-let auth;
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-if (getApps().length === 0) {
-  app = initializeApp(firebaseConfig);
-  try {
-    auth = initializeAuth(app, {
-      persistence: getReactNativePersistence(AsyncStorage)
-    });
-  } catch (e) {
-    auth = getAuth(app);
-  }
-} else {
-  app = getApp();
+let auth;
+try {
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage),
+  });
+} catch (e) {
   auth = getAuth(app);
 }
 
